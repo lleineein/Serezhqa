@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Локальный парсер банковских переводов из chatlog.txt для Amazing Online.">
+  <title>Bank logger</title>
+
+  <style>
+    :root {
+      --bg: #07110f;
+      --bg-secondary: #0b1714;
+      --card: rgba(13, 28, 24, 0.88);
+      --card-solid: #0d1c18;
+      --surface: #10231e;
+      --surface-hover: #153029;
+      --border: rgba(138, 178, 164, 0.18);
+      --border-strong: rgba(45, 212, 191, 0.58);
+      --text: #e8f3ef;
+      --muted: #8fa9a0;
+      --accent: #2dd4bf;
+      --accent-strong: #14b8a6;
+      --accent-soft: rgba(45, 212, 191, 0.12);
+      --success: #4ade80;
+      --warning: #fbbf24;
+      --danger: #fb7185;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+      --radius-lg: 24px;
+      --radius-md: 15px;
+      --radius-sm: 11px;
+      --transition: 160ms ease;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-height: 100%;
+      background: var(--bg);
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 8%, rgba(45, 212, 191, 0.12), transparent 30rem),
+        radial-gradient(circle at 88% 90%, rgba(20, 184, 166, 0.08), transparent 34rem),
+        linear-gradient(135deg, #06100e 0%, #0a1714 55%, #07110f 100%);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button,
+    textarea,
+    input {
+      font: inherit;
+    }
+
+    button {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .page {
+      width: min(100% - 28px, 820px);
+      margin: 0 auto;
+      padding: 48px 0;
+    }
+
+    .app-card {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(22px, 4vw, 38px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .app-card::before {
+      position: absolute;
+      inset: 0 0 auto;
+      height: 1px;
+      content: "";
+      background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.65), transparent);
+    }
+
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      display: grid;
+      width: 46px;
+      height: 46px;
+      flex: 0 0 auto;
+      place-items: center;
+      border: 1px solid rgba(45, 212, 191, 0.26);
+      border-radius: 14px;
+      color: var(--accent);
+      background: var(--accent-soft);
+      font-size: 22px;
+      box-shadow: inset 0 0 24px rgba(45, 212, 191, 0.06);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.35rem, 4vw, 2rem);
+      line-height: 1.15;
+      letter-spacing: -0.035em;
+    }
+
+    .subtitle {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .privacy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      flex: 0 0 auto;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.025);
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .upload-zone {
+      position: relative;
+      display: grid;
+      min-height: 235px;
+      padding: 28px;
+      place-items: center;
+      border: 1.5px dashed rgba(138, 178, 164, 0.34);
+      border-radius: var(--radius-md);
+      text-align: center;
+      background:
+        linear-gradient(180deg, rgba(45, 212, 191, 0.035), transparent),
+        rgba(4, 13, 11, 0.28);
+      transition:
+        border-color var(--transition),
+        background var(--transition),
+        transform var(--transition),
+        box-shadow var(--transition);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .upload-zone:hover,
+    .upload-zone:focus-visible {
+      border-color: rgba(45, 212, 191, 0.62);
+      background:
+        linear-gradient(180deg, rgba(45, 212, 191, 0.07), transparent),
+        rgba(4, 13, 11, 0.38);
+    }
+
+    .upload-zone.is-dragging {
+      border-color: var(--accent);
+      background: rgba(45, 212, 191, 0.1);
+      box-shadow: 0 0 0 5px rgba(45, 212, 191, 0.08);
+      transform: scale(1.008);
+    }
+
+    .upload-content {
+      pointer-events: none;
+    }
+
+    .upload-icon {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      margin: 0 auto 16px;
+      place-items: center;
+      border: 1px solid rgba(45, 212, 191, 0.23);
+      border-radius: 18px;
+      color: var(--accent);
+      background: var(--accent-soft);
+      font-size: 27px;
+    }
+
+    .upload-title {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 750;
+    }
+
+    .upload-hint {
+      margin: 7px 0 19px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 42px;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 10px 15px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: #03201a;
+      background: var(--accent);
+      font-weight: 750;
+      line-height: 1;
+      text-decoration: none;
+      cursor: pointer;
+      transition:
+        transform var(--transition),
+        background var(--transition),
+        border-color var(--transition),
+        color var(--transition),
+        opacity var(--transition);
+    }
+
+    .button:hover {
+      background: #5eead4;
+      transform: translateY(-1px);
+    }
+
+    .button:active {
+      background: var(--accent-strong);
+      transform: translateY(0) scale(0.98);
+    }
+
+    .button:focus-visible {
+      outline: 3px solid rgba(45, 212, 191, 0.22);
+      outline-offset: 2px;
+    }
+
+    .button.secondary {
+      border-color: var(--border);
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .button.secondary:hover {
+      border-color: rgba(45, 212, 191, 0.35);
+      background: var(--surface-hover);
+    }
+
+    .button.ghost {
+      border-color: var(--border);
+      color: var(--muted);
+      background: transparent;
+    }
+
+    .button.ghost:hover {
+      border-color: rgba(251, 113, 133, 0.34);
+      color: #fecdd3;
+      background: rgba(251, 113, 133, 0.07);
+    }
+
+    .button:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .separator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #648078;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+    }
+
+    .separator::before,
+    .separator::after {
+      width: 34px;
+      height: 1px;
+      content: "";
+      background: var(--border);
+    }
+
+    #fileInput {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .paste-panel {
+      display: none;
+      margin-top: 14px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: rgba(4, 13, 11, 0.34);
+      animation: slideIn 180ms ease both;
+    }
+
+    .paste-panel.is-open {
+      display: block;
+    }
+
+    .paste-label {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+
+    .paste-input,
+    .result-output {
+      width: 100%;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      background: #06110e;
+      font-family:
+        "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .paste-input {
+      min-height: 150px;
+      padding: 13px;
+    }
+
+    .paste-input:focus,
+    .result-output:focus {
+      border-color: var(--border-strong);
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.08);
+    }
+
+    .paste-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 11px;
+    }
+
+    .status-box {
+      display: none;
+      margin-top: 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.025);
+      animation: slideIn 180ms ease both;
+    }
+
+    .status-box.is-visible {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-icon {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      place-items: center;
+      border-radius: 10px;
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .status-box[data-type="success"] .status-icon {
+      color: var(--success);
+      background: rgba(74, 222, 128, 0.1);
+    }
+
+    .status-box[data-type="warning"] .status-icon {
+      color: var(--warning);
+      background: rgba(251, 191, 36, 0.1);
+    }
+
+    .status-box[data-type="error"] .status-icon {
+      color: var(--danger);
+      background: rgba(251, 113, 133, 0.1);
+    }
+
+    .status-text {
+      min-width: 0;
+    }
+
+    .status-title {
+      margin: 0;
+      font-weight: 750;
+    }
+
+    .status-description {
+      overflow: hidden;
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .spinner {
+      width: 17px;
+      height: 17px;
+      border: 2px solid rgba(45, 212, 191, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 700ms linear infinite;
+    }
+
+    .results {
+      display: none;
+      margin-top: 22px;
+      animation: slideIn 220ms ease both;
+    }
+
+    .results.is-visible {
+      display: block;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .stat-label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .stat-value {
+      display: block;
+      overflow: hidden;
+      font-size: 1rem;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 9px;
+    }
+
+    .result-label {
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+
+    .result-format {
+      color: #648078;
+      font-family:
+        "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.74rem;
+    }
+
+    .result-output {
+      min-height: 250px;
+      max-height: 55vh;
+      padding: 15px;
+      line-height: 1.65;
+      white-space: pre;
+    }
+
+    .result-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 13px;
+    }
+
+    .result-actions .button {
+      flex: 1 1 180px;
+    }
+
+    .footer-note {
+      margin: 19px 0 0;
+      color: #648078;
+      font-size: 0.77rem;
+      text-align: center;
+    }
+
+    .footer-signature {
+      margin: 8px 0 0;
+      color: var(--accent);
+      font-family:
+        "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-align: center;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      clip-path: inset(50%);
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 680px) {
+      .page {
+        width: min(100% - 18px, 820px);
+        padding: 18px 0;
+      }
+
+      .app-card {
+        border-radius: 19px;
+      }
+
+      .header {
+        display: block;
+      }
+
+      .privacy-badge {
+        margin-top: 16px;
+      }
+
+      .upload-zone {
+        min-height: 260px;
+        padding: 22px 14px;
+      }
+
+      .button-row {
+        flex-direction: column;
+      }
+
+      .button-row .button {
+        width: min(100%, 240px);
+      }
+
+      .separator::before,
+      .separator::after {
+        width: 22px;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .stat.file-stat {
+        grid-column: 1 / -1;
+      }
+
+      .result-actions {
+        flex-direction: column;
+      }
+
+      .result-actions .button {
+        flex-basis: auto;
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <section class="app-card" aria-labelledby="pageTitle">
+      <header class="header">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">₽</div>
+          <div>
+            <h1 id="pageTitle">Bank logger</h1>
+            <p class="subtitle">Суммирование переводов от 1 млн из игрового chatlog.txt</p>
+          </div>
+        </div>
+
+        <div class="privacy-badge" title="Файл не загружается в интернет">
+          <span aria-hidden="true">🔒</span>
+          Локальная обработка
+        </div>
+      </header>
+
+      <section
+        id="dropZone"
+        class="upload-zone"
+        tabindex="0"
+        role="button"
+        aria-label="Выберите или перетащите TXT-файл"
+      >
+        <input id="fileInput" type="file" accept=".txt,text/plain">
+
+        <div class="upload-content">
+          <div class="upload-icon" aria-hidden="true">⇧</div>
+          <p class="upload-title">Перетащите chatlog.txt сюда</p>
+          <p class="upload-hint">Файл обрабатывается только в вашем браузере</p>
+
+          <div class="button-row">
+            <button id="chooseFileButton" class="button" type="button">
+              <span aria-hidden="true">📄</span>
+              Выбрать файл
+            </button>
+
+            <span class="separator" aria-hidden="true">или</span>
+
+            <button id="pasteToggleButton" class="button secondary" type="button">
+              <span aria-hidden="true">⌨</span>
+              Вставить текст
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="pastePanel" class="paste-panel" aria-label="Вставка текста чатлога">
+        <label class="paste-label" for="pasteInput">
+          Вставьте строки из chatlog.txt
+        </label>
+        <textarea
+          id="pasteInput"
+          class="paste-input"
+          spellcheck="false"
+          placeholder="{F2994A}Ryu_Miller [123] перевел на Ваш банковский счет {99CC00}6 млн руб."
+        ></textarea>
+
+        <div class="paste-actions">
+          <button id="cancelPasteButton" class="button ghost" type="button">Отмена</button>
+          <button id="processPasteButton" class="button" type="button">Обработать текст</button>
+        </div>
+      </section>
+
+      <section
+        id="statusBox"
+        class="status-box"
+        data-type="info"
+        role="status"
+        aria-live="polite"
+      >
+        <div id="statusIcon" class="status-icon" aria-hidden="true">i</div>
+        <div class="status-text">
+          <p id="statusTitle" class="status-title">Ожидание файла</p>
+          <p id="statusDescription" class="status-description"></p>
+        </div>
+      </section>
+
+      <section id="resultsSection" class="results" aria-labelledby="resultsTitle">
+        <h2 id="resultsTitle" class="sr-only">Результаты обработки</h2>
+
+        <div class="stats-grid">
+          <div class="stat">
+            <span class="stat-label">Засчитано переводов</span>
+            <strong id="transferCount" class="stat-value">0</strong>
+          </div>
+
+          <div class="stat">
+            <span class="stat-label">Уникальных игроков</span>
+            <strong id="playerCount" class="stat-value">0</strong>
+          </div>
+
+          <div class="stat file-stat">
+            <span class="stat-label">Источник</span>
+            <strong id="sourceName" class="stat-value" title="">—</strong>
+          </div>
+        </div>
+
+        <div class="result-label-row">
+          <label class="result-label" for="resultOutput">Итоговый список</label>
+          <span class="result-format">nickname|amount</span>
+        </div>
+
+        <textarea
+          id="resultOutput"
+          class="result-output"
+          readonly
+          spellcheck="false"
+          aria-label="Результат обработки"
+        ></textarea>
+
+        <div class="result-actions">
+          <button id="copyButton" class="button secondary" type="button">
+            <span aria-hidden="true">📋</span>
+            <span class="button-text">Скопировать</span>
+          </button>
+
+          <button id="downloadButton" class="button" type="button">
+            <span aria-hidden="true">💾</span>
+            Скачать result.txt
+          </button>
+
+          <button id="clearButton" class="button ghost" type="button">
+            <span aria-hidden="true">×</span>
+            Очистить
+          </button>
+        </div>
+      </section>
+
+      <p class="footer-note">
+        Данные не отправляются на сервер и не покидают устройство.
+        Переводы меньше 1 млн рублей игнорируются.
+      </p>
+      <p class="footer-signature">By: Takizawa</p>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    // ============================================================
+    // НАСТРОЙКА ПАРСЕРА:
+    // Добавляйте сюда регулярные выражения,
+    // соответствующие реальным строкам переводов из chatlog.txt.
+    //
+    // Обязательные именованные группы:
+    //   (?<player>...) — отправитель перевода;
+    //   (?<amount>...) — сумма без завершающего слова "руб".
+    // ============================================================
+
+    const TRANSFER_PATTERNS = [
+      // Основной формат Amazing Online после очистки timestamp и цветовых кодов:
+      // Nick_Name [123] перевел на Ваш банковский счет 1 млн 250 тыс руб.
+      //
+      // В нике временно разрешены кириллические буквы и пробелы:
+      // Apollon_Нурocrite и Apollon Hypocrite затем нормализуются
+      // функцией normalizePlayerName().
+      /^(?<player>[\p{L}\p{N}_]+(?:[ _]+[\p{L}\p{N}_]+)*)\s+\[\d+\]\s*.*?перев[её]л\s+на\s+Ваш\s+банковский\s+сч[её]т\s+(?<amount>.*?)\s*руб(?:\.|лей|ля|ль)?(?:\s|$)/iu,
+
+      // Резервный формат без игрового ID.
+      // Шаблон привязан к началу записи и точной банковской фразе,
+      // поэтому сообщения чата с простым упоминанием денег не подходят.
+      /^(?<player>[\p{L}\p{N}_]+(?:[ _]+[\p{L}\p{N}_]+)*)\s+перев[её]л\s+на\s+Ваш\s+банковский\s+сч[её]т\s+(?<amount>.*?)\s*руб(?:\.|лей|ля|ль)?(?:\s|$)/iu
+    ];
+
+    // Минимальная сумма ОДНОГО перевода, которая засчитывается.
+    // Несколько переводов меньше 1 млн не складываются между собой.
+    const MIN_TRANSFER_MILLIONS = 1;
+
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+    const elements = {
+      dropZone: document.getElementById("dropZone"),
+      fileInput: document.getElementById("fileInput"),
+      chooseFileButton: document.getElementById("chooseFileButton"),
+      pasteToggleButton: document.getElementById("pasteToggleButton"),
+      pastePanel: document.getElementById("pastePanel"),
+      pasteInput: document.getElementById("pasteInput"),
+      cancelPasteButton: document.getElementById("cancelPasteButton"),
+      processPasteButton: document.getElementById("processPasteButton"),
+      statusBox: document.getElementById("statusBox"),
+      statusIcon: document.getElementById("statusIcon"),
+      statusTitle: document.getElementById("statusTitle"),
+      statusDescription: document.getElementById("statusDescription"),
+      resultsSection: document.getElementById("resultsSection"),
+      transferCount: document.getElementById("transferCount"),
+      playerCount: document.getElementById("playerCount"),
+      sourceName: document.getElementById("sourceName"),
+      resultOutput: document.getElementById("resultOutput"),
+      copyButton: document.getElementById("copyButton"),
+      downloadButton: document.getElementById("downloadButton"),
+      clearButton: document.getElementById("clearButton")
+    };
+
+    let currentResult = "";
+    let copyButtonResetTimer = null;
+    let dragDepth = 0;
+
+    /**
+     * Удаляет нормальные и повреждённые игровые цветовые коды.
+     *
+     * Поддерживаются, например:
+     *   {F2994A}
+     *   {FFFFFF)
+     *   (99СС00}
+     *   {99CC00
+     *
+     * В логах могут встречаться кириллические "С" вместо латинских "C".
+     */
+    function stripColorCodes(text) {
+      return String(text)
+        .replace(/[\{\(]\s*[0-9A-Za-zА-Яа-яЁё]{6}\s*[\}\)]?/gu, " ")
+        .replace(/[{}()]/g, " ");
+    }
+
+    /**
+     * Приводит OCR-подобные варианты одного ника к общей форме.
+     *
+     * Примеры:
+     *   Apollon Hypocrite   -> Apollon_Hypocrite
+     *   Apollon_Нурocrite  -> Apollon_Hypocrite
+     *
+     * Amazing Online использует латинские ники, поэтому визуально похожие
+     * кириллические символы безопасно заменяются латинскими аналогами.
+     */
+    function normalizePlayerName(playerName) {
+      const homoglyphs = {
+        "А": "A", "В": "B", "С": "C", "Е": "E", "Н": "H",
+        "К": "K", "М": "M", "О": "O", "Р": "P", "Т": "T",
+        "Х": "X", "У": "Y",
+        "а": "a", "с": "c", "е": "e", "о": "o", "р": "p",
+        "х": "x", "у": "y", "к": "k", "м": "m", "т": "t",
+        "н": "h", "в": "b"
+      };
+
+      const latinized = Array.from(String(playerName).trim(), (character) => {
+        return homoglyphs[character] ?? character;
+      }).join("");
+
+      const normalized = latinized
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_+|_+$/g, "");
+
+      if (!/^[A-Za-z0-9_]{2,32}$/.test(normalized)) {
+        return null;
+      }
+
+      return normalized;
+    }
+
+    /**
+     * Преобразует текстовую сумму в миллионы рублей.
+     *
+     * Поддерживаемые примеры:
+     *   6 млн.
+     *   1,25 млн.
+     *   500 тыс.
+     *   1 млн. 250 тыс. 300
+     *   1 500
+     *
+     * Последнее число без единицы считается рублями.
+     */
+    function parseMoneyToMillions(amountText) {
+      const normalized = String(amountText)
+        .toLowerCase()
+        .replace(/\u00A0/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const partPattern =
+        /(\d[\d ]*(?:[.,]\d+)?)\s*(млн|тыс)?\.?/giu;
+
+      const multipliers = {
+        "млн": 1_000_000,
+        "тыс": 1_000
+      };
+
+      let totalRubles = 0;
+      let foundParts = 0;
+      let match;
+
+      while ((match = partPattern.exec(normalized)) !== null) {
+        const numericText = match[1]
+          .replace(/\s+/g, "")
+          .replace(",", ".");
+
+        const value = Number(numericText);
+        const unit = match[2]?.toLowerCase();
+        const multiplier = unit ? multipliers[unit] : 1;
+
+        if (!Number.isFinite(value) || value < 0 || !multiplier) {
+          return null;
+        }
+
+        totalRubles += value * multiplier;
+        foundParts += 1;
+      }
+
+      // После удаления распознанных частей должны остаться только пробелы.
+      // Это исключает отрицательные и повреждённые значения вроде "-5 млн".
+      const unparsedRemainder = normalized
+        .replace(partPattern, "")
+        .replace(/\s+/g, "");
+
+      if (
+        unparsedRemainder !== "" ||
+        foundParts === 0 ||
+        !Number.isFinite(totalRubles) ||
+        totalRubles <= 0 ||
+        totalRubles > Number.MAX_SAFE_INTEGER
+      ) {
+        return null;
+      }
+
+      return totalRubles / 1_000_000;
+    }
+
+    /**
+     * Делит чатлог на отдельные записи по timestamp.
+     *
+     * Это необходимо, потому что в реальном файле несколько сообщений
+     * могут оказаться склеены в одну физическую строку.
+     */
+    function splitChatlogEntries(text) {
+      return String(text)
+        .replace(/\r\n?/g, "\n")
+        .split(/(?=\[\d{2}:\d{2}:\d{2}\])/g)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+
+    /**
+     * Распознаёт одну отдельную запись банковского перевода.
+     *
+     * @param {string} line
+     * @returns {{player: string, amount: number} | null}
+     */
+    function parseTransferLine(line) {
+      if (typeof line !== "string" || line.trim() === "") {
+        return null;
+      }
+
+      const normalizedLine = stripColorCodes(line)
+        .replace(/^\s*\[\d{2}:\d{2}:\d{2}\]\s*/, "")
+        .replace(/\u00A0/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+
+      for (const pattern of TRANSFER_PATTERNS) {
+        // Сбрасываем lastIndex на случай добавления глобального regexp.
+        pattern.lastIndex = 0;
+
+        const match = pattern.exec(normalizedLine);
+        const rawPlayer = match?.groups?.player;
+        const rawAmount = match?.groups?.amount;
+
+        if (!rawPlayer || !rawAmount) {
+          continue;
+        }
+
+        const player = normalizePlayerName(rawPlayer);
+        const amount = parseMoneyToMillions(rawAmount);
+
+        if (
+          !player ||
+          !Number.isFinite(amount) ||
+          amount < MIN_TRANSFER_MILLIONS
+        ) {
+          return null;
+        }
+
+        return {
+          player,
+          amount
+        };
+      }
+
+      return null;
+    }
+
+    /**
+     * Обрезает число до одного знака после запятой без округления:
+     * 5.55 -> 5.5, 1.25 -> 1.2.
+     */
+    function truncateToOneDecimal(value) {
+      return Math.trunc((value + Number.EPSILON) * 10) / 10;
+    }
+
+    /**
+     * Выводит целые значения без ".0", остальные — с одним знаком.
+     */
+    function formatAmount(value) {
+      const truncated = truncateToOneDecimal(value);
+
+      if (Object.is(truncated, -0) || truncated === 0) {
+        return "0";
+      }
+
+      return Number.isInteger(truncated)
+        ? String(truncated)
+        : truncated.toFixed(1);
+    }
+
+    /**
+     * Обрабатывает весь текст чатлога.
+     */
+    function parseChatlog(text) {
+      const totals = new Map();
+      let transferCount = 0;
+
+      const entries = splitChatlogEntries(text);
+
+      for (const entry of entries) {
+        try {
+          const transfer = parseTransferLine(entry);
+
+          if (!transfer) {
+            continue;
+          }
+
+          const previousAmount = totals.get(transfer.player) ?? 0;
+          totals.set(transfer.player, previousAmount + transfer.amount);
+          transferCount += 1;
+        } catch (error) {
+          // Повреждённая строка не должна останавливать обработку файла.
+          console.warn("Запись пропущена:", error);
+        }
+      }
+
+      const players = Array.from(totals, ([player, amount]) => ({
+        player,
+        amount
+      }));
+
+      players.sort((a, b) => {
+        const amountDifference = b.amount - a.amount;
+
+        if (Math.abs(amountDifference) > Number.EPSILON) {
+          return amountDifference;
+        }
+
+        return a.player.localeCompare(b.player, ["en", "ru"], {
+          sensitivity: "base",
+          numeric: true
+        });
+      });
+
+      const resultText = players
+        .map(({ player, amount }) => `${player}|${formatAmount(amount)}`)
+        .join("\n");
+
+      return {
+        transferCount,
+        playerCount: players.length,
+        resultText
+      };
+    }
+
+    /**
+     * Читает файл локально через FileReader.
+     * Сначала пытается декодировать UTF-8, затем Windows-1251.
+     */
+    function readTextFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onerror = () => {
+          reject(new Error("Браузер не смог прочитать файл."));
+        };
+
+        reader.onload = () => {
+          try {
+            const bytes = new Uint8Array(reader.result);
+            let text;
+            let encoding = "UTF-8";
+
+            try {
+              text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+            } catch {
+              text = new TextDecoder("windows-1251").decode(bytes);
+              encoding = "Windows-1251";
+            }
+
+            // Удаляем BOM, если он присутствует.
+            text = text.replace(/^\uFEFF/, "");
+            resolve({ text, encoding });
+          } catch (error) {
+            reject(new Error("Не удалось определить кодировку файла."));
+          }
+        };
+
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function validateFile(file) {
+      if (!(file instanceof File)) {
+        return "Файл не выбран.";
+      }
+
+      if (!file.name.toLowerCase().endsWith(".txt")) {
+        return "Поддерживаются только файлы с расширением .txt.";
+      }
+
+      if (file.size === 0) {
+        return "Выбранный файл пуст.";
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        return "Файл слишком большой. Максимальный размер — 50 МБ.";
+      }
+
+      return null;
+    }
+
+    function setStatus(type, title, description = "") {
+      const icons = {
+        info: "i",
+        loading: "",
+        success: "✓",
+        warning: "!",
+        error: "×"
+      };
+
+      elements.statusBox.classList.add("is-visible");
+      elements.statusBox.dataset.type = type;
+      elements.statusTitle.textContent = title;
+      elements.statusDescription.textContent = description;
+
+      if (type === "loading") {
+        elements.statusIcon.innerHTML = '<span class="spinner"></span>';
+      } else {
+        elements.statusIcon.textContent = icons[type] ?? "i";
+      }
+    }
+
+    function hideStatus() {
+      elements.statusBox.classList.remove("is-visible");
+    }
+
+    function setControlsDisabled(disabled) {
+      elements.chooseFileButton.disabled = disabled;
+      elements.pasteToggleButton.disabled = disabled;
+      elements.processPasteButton.disabled = disabled;
+      elements.fileInput.disabled = disabled;
+    }
+
+    function renderResult(parsed, sourceName) {
+      currentResult = parsed.resultText;
+
+      elements.transferCount.textContent =
+        parsed.transferCount.toLocaleString("ru-RU");
+      elements.playerCount.textContent =
+        parsed.playerCount.toLocaleString("ru-RU");
+      elements.sourceName.textContent = sourceName;
+      elements.sourceName.title = sourceName;
+      elements.resultOutput.value = parsed.resultText;
+
+      const hasResults = parsed.playerCount > 0;
+      elements.copyButton.disabled = !hasResults;
+      elements.downloadButton.disabled = !hasResults;
+      elements.resultsSection.classList.add("is-visible");
+
+      if (hasResults) {
+        setStatus(
+          "success",
+          "Обработка завершена",
+          `Найдено переводов: ${parsed.transferCount}. Игроков: ${parsed.playerCount}.`
+        );
+      } else {
+        setStatus(
+          "warning",
+          "Подходящие переводы не найдены",
+          "Учитываются только корректные банковские переводы на сумму от 1 млн рублей."
+        );
+      }
+    }
+
+    async function processText(text, sourceName) {
+      setControlsDisabled(true);
+      setStatus("loading", "Обработка данных…", sourceName);
+
+      // Даём браузеру отрисовать состояние загрузки перед разбором большого файла.
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
+      try {
+        const parsed = parseChatlog(text);
+        renderResult(parsed, sourceName);
+      } catch (error) {
+        console.error(error);
+        setStatus(
+          "error",
+          "Не удалось обработать данные",
+          error instanceof Error ? error.message : "Неизвестная ошибка."
+        );
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    async function processFile(file) {
+      const validationError = validateFile(file);
+
+      if (validationError) {
+        setStatus("error", "Файл не принят", validationError);
+        return;
+      }
+
+      setControlsDisabled(true);
+      setStatus(
+        "loading",
+        "Чтение файла…",
+        `${file.name} · ${formatFileSize(file.size)}`
+      );
+
+      try {
+        const { text, encoding } = await readTextFile(file);
+        await processText(text, file.name);
+
+        if (elements.resultsSection.classList.contains("is-visible")) {
+          elements.sourceName.title = `${file.name} · ${encoding}`;
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus(
+          "error",
+          "Ошибка чтения файла",
+          error instanceof Error ? error.message : "Неизвестная ошибка."
+        );
+      } finally {
+        setControlsDisabled(false);
+        elements.fileInput.value = "";
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) {
+        return `${bytes} Б`;
+      }
+
+      if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} КБ`;
+      }
+
+      return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+    }
+
+    async function copyResult() {
+      if (!currentResult) {
+        return;
+      }
+
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(currentResult);
+        } else {
+          elements.resultOutput.focus();
+          elements.resultOutput.select();
+
+          const copied = document.execCommand("copy");
+          window.getSelection()?.removeAllRanges();
+
+          if (!copied) {
+            throw new Error("Копирование не поддерживается браузером.");
+          }
+        }
+
+        const textElement = elements.copyButton.querySelector(".button-text");
+        textElement.textContent = "Скопировано!";
+
+        clearTimeout(copyButtonResetTimer);
+        copyButtonResetTimer = setTimeout(() => {
+          textElement.textContent = "Скопировать";
+        }, 1600);
+      } catch (error) {
+        setStatus(
+          "error",
+          "Не удалось скопировать",
+          "Выделите результат и скопируйте его вручную."
+        );
+      }
+    }
+
+    function downloadResult() {
+      if (!currentResult) {
+        return;
+      }
+
+      const blob = new Blob([currentResult], {
+        type: "text/plain;charset=utf-8"
+      });
+
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = objectUrl;
+      link.download = "result.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    }
+
+    function togglePastePanel(forceOpen) {
+      const shouldOpen =
+        typeof forceOpen === "boolean"
+          ? forceOpen
+          : !elements.pastePanel.classList.contains("is-open");
+
+      elements.pastePanel.classList.toggle("is-open", shouldOpen);
+      elements.pasteToggleButton.setAttribute("aria-expanded", String(shouldOpen));
+
+      if (shouldOpen) {
+        elements.pasteInput.focus();
+      }
+    }
+
+    function clearAll() {
+      currentResult = "";
+      clearTimeout(copyButtonResetTimer);
+
+      elements.fileInput.value = "";
+      elements.pasteInput.value = "";
+      elements.resultOutput.value = "";
+      elements.transferCount.textContent = "0";
+      elements.playerCount.textContent = "0";
+      elements.sourceName.textContent = "—";
+      elements.sourceName.title = "";
+      elements.resultsSection.classList.remove("is-visible");
+      elements.copyButton.disabled = false;
+      elements.downloadButton.disabled = false;
+
+      const textElement = elements.copyButton.querySelector(".button-text");
+      textElement.textContent = "Скопировать";
+
+      togglePastePanel(false);
+      hideStatus();
+      elements.dropZone.focus();
+    }
+
+    function preventDefaults(event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    // Выбор файла.
+    elements.chooseFileButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      elements.fileInput.click();
+    });
+
+    elements.fileInput.addEventListener("change", () => {
+      const [file] = elements.fileInput.files;
+
+      if (file) {
+        processFile(file);
+      }
+    });
+
+    // Клик и клавиатура по зоне загрузки.
+    elements.dropZone.addEventListener("click", (event) => {
+      if (event.target.closest("button")) {
+        return;
+      }
+
+      elements.fileInput.click();
+    });
+
+    elements.dropZone.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        elements.fileInput.click();
+      }
+    });
+
+    // Drag and Drop с учётом вложенных элементов.
+    ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+      elements.dropZone.addEventListener(eventName, preventDefaults);
+    });
+
+    elements.dropZone.addEventListener("dragenter", () => {
+      dragDepth += 1;
+      elements.dropZone.classList.add("is-dragging");
+    });
+
+    elements.dropZone.addEventListener("dragover", (event) => {
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    });
+
+    elements.dropZone.addEventListener("dragleave", () => {
+      dragDepth = Math.max(0, dragDepth - 1);
+
+      if (dragDepth === 0) {
+        elements.dropZone.classList.remove("is-dragging");
+      }
+    });
+
+    elements.dropZone.addEventListener("drop", (event) => {
+      dragDepth = 0;
+      elements.dropZone.classList.remove("is-dragging");
+
+      const files = Array.from(event.dataTransfer?.files ?? []);
+
+      if (files.length !== 1) {
+        setStatus(
+          "error",
+          "Выберите один файл",
+          "Одновременно можно обработать только один TXT-файл."
+        );
+        return;
+      }
+
+      processFile(files[0]);
+    });
+
+    // Вставка текста.
+    elements.pasteToggleButton.setAttribute("aria-expanded", "false");
+
+    elements.pasteToggleButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      togglePastePanel();
+    });
+
+    elements.cancelPasteButton.addEventListener("click", () => {
+      togglePastePanel(false);
+    });
+
+    elements.processPasteButton.addEventListener("click", () => {
+      const text = elements.pasteInput.value;
+
+      if (!text.trim()) {
+        setStatus(
+          "warning",
+          "Нет данных для обработки",
+          "Вставьте хотя бы одну строку чатлога."
+        );
+        elements.pasteInput.focus();
+        return;
+      }
+
+      processText(text, "Вставленный текст");
+    });
+
+    // Работа с результатом.
+    elements.copyButton.addEventListener("click", copyResult);
+    elements.downloadButton.addEventListener("click", downloadResult);
+    elements.clearButton.addEventListener("click", clearAll);
+
+    // Экспорт для ручной проверки в консоли браузера.
+    window.parseTransferLine = parseTransferLine;
+  </script>
+</body>
+</html>
